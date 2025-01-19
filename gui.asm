@@ -10,13 +10,28 @@ CPU    X64
 %define SYSCALL_CONNECT    42
 %define SYSCALL_EXIT       60
 %define SYSCALL_WRITE      1
+%define SYSCALL_READ       0
 
 %define SIZEOF_SOCKADDR_UN 2+108
 
 section .rodata:
+
     sun_path: db "/tmp/.X11-unix/X0", 0
     static sun_path:data
 
+section .data
+
+    id: dd 0
+    static id:data
+
+    id_base: dd 0
+    static id_base:data
+
+    id_mask: dd 0
+    static id_mask:data
+
+    root_visual_id: dd 0
+    static root_visual_id:data
 
 section .text
 _start:
@@ -69,6 +84,99 @@ static x11_connect_to_server:function
     add rsp, 112
 
     pop rbp
+    ret
+
+; Send the handshake to X11 server and read the returned info
+; @param rdi - The socket fd
+; @ret rax - The window root id (uint32_t)
+x11_send_handshake:
+static x11_send_handshake:function
+    push rbp
+    mov  rbp, rsp
+
+    sub rsp, 1<<15 ; 2^15 (space for read buffer)
+    
+    mov BYTE [rsp + 0], 'l' ; set `order` to "l" (i.e. little endian)
+    mov WORD [rsp + 2], 11  ; set `major` version
+
+    ; send the handshake to server: write(2)
+    mov rax, SYSCALL_WRITE
+    mov rdi, rdi
+    lea rsi, [rsp]
+    mov rdx, 12
+    syscall
+
+    cmp rax, 12 ; check if all bytes are written
+    jnz die
+
+    ; read the server response (first 8 bytes): read(2)
+    ; using stack for the read buffer
+    ; 
+    ; 📝 NOTE: The X11 server first replies with 8 bytes. Once these 
+    ; are read, it replies with a much bigger message.
+    mov rax, SYSCALL_READ
+    mov rdi, rdi
+    lea rsi, [rsp]
+    mov rdx, 8
+    syscall
+
+    ; check if server responded with 8 bytes
+    cmp rax, 8
+    jnz die
+
+    ; check if server sent 'success' (i.e. 1)
+    cmp BYTE [rsp], 1
+    jnz die
+
+    ; read the rest of the server response: read(2)
+    ;
+    ; 📝 NOTE: we're using the stack for read buffer
+    mov rax, SYSCALL_READ
+    mov rdi, rdi
+    lea rsi, [rsp]
+    mov rdx, 1<<15
+    syscall
+
+    ; check that the server replied w/ something
+    cmp rax, 0
+    jle die
+
+    ; set [id_base] globally
+    mov edx,             DWORD [rsp + 4]
+    mov DWORD [id_base], edx
+
+    ; set [id_mask] globally
+    mov edx,             DWORD [rsp + 8]
+    mov DWORD [id_mask], edx
+
+    ; read the info we need, skip over the rest
+    lea rdi, [rsp] ; pointer that will skip over some data
+
+    mov   cx,  WORD [rsp + 16] ; vendor length (v) (16 bits)
+    movzx rcx, cx              ; move from 16 to 64 bit register w/ padding
+
+    mov   al,  BYTE [rsp + 21] ; no. of formats (n) (8 bits) (can be -ve)
+    movzx rax, al              ; move from 8 to 64 bit register w/ padding
+    imul  rax, 8               ; sizeof(format) == 8
+
+    add rdi, 32  ; skip the connection setup
+    add rdi, rcx ; skip over the vendor info (v)
+
+    ; skip over the padding
+    add rdi, 3
+    and rdi, -4 ; make sure `rdi` is multiple of 4
+
+    add rdi, rax ; skip over format info (n*8)
+
+    mov eax, DWORD [rdi] ; store and return [window_root_id]
+
+    ; set the [root_visual_id] globally
+    mov edx,                    DWORD [rdi + 32]
+    mov DWORD [root_visual_id], edx
+
+    add rsp, 1<<15
+    pop rbp
+
     ret
 
 die:
