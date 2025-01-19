@@ -181,8 +181,27 @@ static x11_send_handshake:function
 
     add rsp, 1<<15
     pop rbp
-
     ret
+
+; Increment the global id
+; @ret The new id
+x11_next_id:
+    push rbp
+    mov  rbp, rsp
+
+    mov eax, DWORD [id]      ; load the global [id]
+    mov edi, DWORD [id_base] ; load the global [id_base]
+    mov edx, DWORD [id_mask] ; load the global [id_mask]
+
+    ; return -> `id_mask & (id) | id_base`
+    add eax, edx
+    or  eax, edi
+
+    add DWORD [id], 1 ; increment [id]
+
+    pop rbp
+    ret
+
 
 die:
     mov rax, SYSCALL_EXIT
