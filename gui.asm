@@ -6,11 +6,13 @@ CPU    X64
 %define AF_UNIX            1
 %define SOCK_STREAM        1
 
+%define SYSCALL_READ       0
+%define SYSCALL_WRITE      1
+%define SYSCALL_POLL       7
 %define SYSCALL_SOCKET     41
 %define SYSCALL_CONNECT    42
 %define SYSCALL_EXIT       60
-%define SYSCALL_WRITE      1
-%define SYSCALL_READ       0
+%define SYSCALL_FCNTL      72
 
 %define SIZEOF_SOCKADDR_UN 2+108
 
@@ -18,6 +20,9 @@ section .rodata:
 
     sun_path: db "/tmp/.X11-unix/X0", 0
     static sun_path:data
+
+    hello_world: db "Hello, World!", 0
+    static hello_world:data
 
 section .data
 
