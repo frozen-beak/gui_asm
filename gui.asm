@@ -239,7 +239,52 @@ static x11_open_font:function
     pop rbp
     ret
 
+; Create x11 graphical context
+; @param rdi: socket fd
+; @param rsi: graphical context id
+; @param edx: window root id
+; @param ecx: font id
+x11_create_gc:
+static x11_create_gc:function
+    push rbp
+    mov  rbp, rsp
 
+    sub rsp, 8 * 8
+
+    %define X11_OP_REQ_CREATE_GC 0x37
+    %define X11_FLAG_GC_BG       0x00000004
+    %define X11_FLAG_GC_FG       0x00000008
+    %define X11_FLAG_GC_FONT     0x00004000
+    %define X11_FLAG_GC_EXPOSE   0x00010000
+    
+    %define CREATE_GC_FLAGS             X11_FLAG_GC_BG | X11_FLAG_GC_FG | X11_FLAG_GC_FONT
+    %define CREATE_GC_PACKET_FLAG_COUNT 3
+    %define CREATE_GC_PACKET_U32_COUNT  (4 + CREATE_GC_PACKET_FLAG_COUNT)
+    %define MY_COLOR_RGB                0x0000fff
+
+    mov DWORD [rsp + 0 * 4], X11_OP_REQ_CREATE_GC | (CREATE_GC_PACKET_U32_COUNT << 16)
+    mov DWORD [rsp + 1 * 4], esi
+    mov DWORD [rsp + 2 * 4], edx
+    mov DWORD [rsp + 3 * 4], CREATE_GC_FLAGS
+    mov DWORD [rsp + 4 * 4], MY_COLOR_RGB
+    mov DWORD [rsp + 5 * 4], 0
+    mov DWORD [rsp + 6 * 4], ecx
+
+    mov rax, SYSCALL_WRITE
+    mov rdi, rdi
+    lea rsi, [rsp]
+    mov rdx, CREATE_GC_PACKET_U32_COUNT * 4
+    syscall
+
+    cmp rax, CREATE_GC_PACKET_U32_COUNT * 4
+    jnz die
+
+    add rsp, 8 * 8
+
+    pop rbp
+    ret
+
+    
 die:
     mov rax, SYSCALL_EXIT
     mov rdi, 1
