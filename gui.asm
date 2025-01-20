@@ -99,7 +99,7 @@ static x11_send_handshake:function
     push rbp
     mov  rbp, rsp
 
-    sub rsp, 1<<15 ; 2^15 (space for read buffer)
+    sub rsp, 1 << 15 ; 2^15 (space for read buffer)
     
     mov BYTE [rsp + 0], 'l' ; set `order` to "l" (i.e. little endian)
     mov WORD [rsp + 2], 11  ; set `major` version
@@ -139,7 +139,7 @@ static x11_send_handshake:function
     mov rax, SYSCALL_READ
     mov rdi, rdi
     lea rsi, [rsp]
-    mov rdx, 1<<15
+    mov rdx, 1 << 15
     syscall
 
     ; check that the server replied w/ something
@@ -179,7 +179,7 @@ static x11_send_handshake:function
     mov edx,                    DWORD [rdi + 32]
     mov DWORD [root_visual_id], edx
 
-    add rsp, 1<<15
+    add rsp, 1 << 15
     pop rbp
     ret
 
@@ -198,6 +198,43 @@ x11_next_id:
     or  eax, edi
 
     add DWORD [id], 1 ; increment [id]
+
+    pop rbp
+    ret
+
+; open the font on the server side
+; @param rdi: The socket fd
+; @param esi: The font id
+x11_open_font:
+static x11_open_font:function
+    push rbp
+    mov  rbp, rsp
+
+    %define OPEN_FONT_NAME_BYTE_COUNT  5
+    %define OPEN_FONT_PADDING          ((4 - (OPEN_FONT_NAME_BYTE_COUNT % 4)) % 4)
+    %define OPEN_FONT_PACKET_U32_COUNT (3 + (OPEN_FONT_NAME_BYTE_COUNT + OPEN_FONT_PADDING) / 4)
+    %define X11_OP_REQ_OPEN_FONT       0x2d
+
+    sub rsp,                    6 * 8
+    mov DWORD [rsp + 0 * 4],    X11_OP_REQ_OPEN_FONT | (OPEN_FONT_NAME_BYTE_COUNT << 16)
+    mov DWORD [rsp + 1 * 4],    esi
+    mov DWORD [rsp + 2 * 4],    OPEN_FONT_NAME_BYTE_COUNT
+    mov BYTE [rsp + 3 * 4 + 0], 'f'
+    mov BYTE [rsp + 3 * 4 + 1], 'i'
+    mov BYTE [rsp + 3 * 4 + 2], 'x'
+    mov BYTE [rsp + 3 * 4 + 3], 'e'
+    mov BYTE [rsp + 3 * 4 + 4], 'd'
+
+    mov rax, SYSCALL_WRITE
+    mov rdi, rdi
+    lea rsi, [rsp]
+    mov rdx, OPEN_FONT_PACKET_U32_COUNT * 4
+    syscall
+
+    cmp rax, OPEN_FONT_PACKET_U32_COUNT * 4
+    jnz die
+  
+    add rsp, 6 * 8
 
     pop rbp
     ret
