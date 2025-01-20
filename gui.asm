@@ -40,6 +40,48 @@ section .data
 
 section .text
 _start:
+    call x11_connect_to_server
+
+    mov  r15,  rax          ; store the [socket fd]
+    mov  rdi,  rax
+    call x11_send_handshake
+    mov  r12d, eax          ; store the [window_root_id]
+
+    call x11_next_id
+    mov  r13d, eax   ; store the [graphical_context_id]
+
+    call x11_next_id
+    mov  r14d, eax   ; store the [font_id]
+
+    mov  rdi, r15
+    mov  esi, r14d
+    call x11_open_font
+
+    mov  rdi, r15
+    mov  esi, r13d
+    mov  edx, r12d
+    mov  ecx, r14d
+    call x11_create_gc
+
+    call x11_next_id
+    mov  ebx, eax    ; store the [window_id]
+
+    mov rdi, r15               ; socket fd
+    mov esi, eax
+    mov edx, r12d
+    mov ecx, [root_visual_id]
+    mov r8d, 200 | (200 << 16) ; x and y are 200
+
+    %define WIN_H 800
+    %define WIN_W 600
+
+    mov  r9d, WIN_W | (WIN_H << 16)
+    call x11_create_window
+
+    mov  rdi, r15       ; socket fd
+    mov  esi, ebx
+    call x11_map_window
+
     ; the end
     mov rax, SYSCALL_EXIT
     xor rdi, rdi
@@ -309,16 +351,16 @@ static x11_create_window:function
 
     sub rsp, 12 * 8
 
-    mov DWORD [rsp + 0*4], X11_OP_REQ_CREATE_WINDOW | (CREATE_WINDOW_PACKET_U32_COUNT << 16)
-    mov DWORD [rsp + 1*4], esi
-    mov DWORD [rsp + 2*4], edx
-    mov DWORD [rsp + 3*4], r8d
-    mov DWORD [rsp + 4*4], r9d
-    mov DWORD [rsp + 5*4], CREATE_WINDOW_GROUP | (CREATE_WINDOW_BORDER << 16)
-    mov DWORD [rsp + 6*4], ecx
-    mov DWORD [rsp + 7*4], X11_FLAG_WIN_BG_COLOR | X11_FLAG_WIN_EVENT
-    mov DWORD [rsp + 8*4], 0
-    mov DWORD [rsp + 9*4], X11_EVENT_FLAG_KEY_RELEASE | X11_EVENT_FLAG_EXPOSURE
+    mov DWORD [rsp + 0 * 4], X11_OP_REQ_CREATE_WINDOW | (CREATE_WINDOW_PACKET_U32_COUNT << 16)
+    mov DWORD [rsp + 1 * 4], esi
+    mov DWORD [rsp + 2 * 4], edx
+    mov DWORD [rsp + 3 * 4], r8d
+    mov DWORD [rsp + 4 * 4], r9d
+    mov DWORD [rsp + 5 * 4], CREATE_WINDOW_GROUP | (CREATE_WINDOW_BORDER << 16)
+    mov DWORD [rsp + 6 * 4], ecx
+    mov DWORD [rsp + 7 * 4], X11_FLAG_WIN_BG_COLOR | X11_FLAG_WIN_EVENT
+    mov DWORD [rsp + 8 * 4], 0
+    mov DWORD [rsp + 9 * 4], X11_EVENT_FLAG_KEY_RELEASE | X11_EVENT_FLAG_EXPOSURE
 
     mov rax, SYSCALL_WRITE
     mov rdi, rdi
