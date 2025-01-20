@@ -333,6 +333,35 @@ static x11_create_window:function
 
     pop rbp
     ret
+
+; Map a x11 window
+; @param rdi: socket fd
+; @param rsi: window id
+x11_map_window:
+static x11_map_window:function
+    push rbp
+    mov  rbp, rsp
+
+    sub rsp, 16
+
+    %define X11_OP_REQ_MAP_WINDOW 0x08
+
+    mov DWORD [rsp + 0 * 4], X11_OP_REQ_MAP_WINDOW | (2 << 16)
+    mov DWORD [rsp + 1 * 4], esi
+
+    mov rax, SYSCALL_WRITE
+    mov rdi, rdi
+    lea rsi, [rsp]
+    mov rdx, 2 * 4
+    syscall
+
+    cmp rax, 2 * 4
+    jnz die
+
+    add rsp, 16
+
+    pop rbp
+    ret
     
 die:
     mov rax, SYSCALL_EXIT
